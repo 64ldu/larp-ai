@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Facial Analysis Pro</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        :root {
+            --bg: #0a0a0a;
+            --bg-card: #141414;
+            --border: rgba(255,255,255,0.08);
+            --text: #ffffff;
+            --text-secondary: rgba(255,255,255,0.6);
+            --text-tertiary: rgba(255,255,255,0.4);
+            --success: #30d158;
+            --error: #ff453a;
+            --warning: #ff9f0a;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            line-height: 1.5;
+        }
+        
+        .app {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            padding: 40px 20px 32px;
+            text-align: center;
+        }
+        
+        .branding {
+            margin-bottom: 20px;
+        }
+        
+        .brand {
+            font-size: 48px;
+            font-weight: 200;
+            letter-spacing: -0.02em;
+            margin-bottom: 4px;
+            background: linear-gradient(135deg, #ffffff 0%, rgba(255,255,255,0.8) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .tagline {
+            font-size: 14px;
+            font-weight: 400;
+            color: var(--text-secondary);
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+        
+        .version {
+            font-size: 16px;
+            font-weight: 300;
+            font-style: italic;
+            color: rgba(255,255,255,0.4);
+            margin-left: 8px;
+        }
+        
+        .subtitle {
+            font-size: 16px;
+            color: var(--text-secondary);
+        }
+        
+        .main {
+            flex: 1;
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 0 20px 40px;
+            width: 100%;
+        }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 20px;
+        }
+        
+        @media (max-width: 900px) {
+            .grid { grid-template-columns: 1fr; }
+            h1 { font-size: 32px; }
+        }
+        
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 24px;
+        }
+        
+        .upload-zone {
+            border: 2px dashed var(--border);
+            border-radius: 16px;
+            padding: 60px 32px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .upload-zone:hover, .upload-zone.dragover {
+            border-color: rgba(255,255,255,0.3);
+            background: rgba(255,255,255,0.02);
+        }
+        
+        .upload-icon {
+            width: 64px;
+            height: 64px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 16px;
+        }
+        
+        .upload-icon svg { width: 28px; height: 28px; color: var(--text-secondary); }
+        
+        .upload-title { font-size: 17px; font-weight: 500; margin-bottom: 6px; }
+        .upload-hint { font-size: 14px; color: var(--text-tertiary); }
+        
+        .preview-box {
+            display: none;
+            background: #000;
+            border-radius: 16px;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .preview-box.active { display: block; }
+        .preview-box img { width: 100%; height: auto; display: block; }
+        .preview-box canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+        
+        .btn-row {
+            display: flex;
+            gap: 12px;
+            margin-top: 20px;
+        }
+        
+        .btn {
+            flex: 1;
+            padding: 14px 20px;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+            font-family: inherit;
+        }
+        
+        .btn-primary {
+            background: #fff;
+            color: #000;
+        }
+        
+        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(255,255,255,0.2); }
+        
+        .btn-secondary {
+            background: rgba(255,255,255,0.08);
+            color: #fff;
+            border: 1px solid var(--border);
+        }
+        
+        .btn-secondary:hover:not(:disabled) { background: rgba(255,255,255,0.12); }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        
+        .status {
+            text-align: center;
+            margin-top: 16px;
+            font-size: 13px;
+            color: var(--text-tertiary);
+            min-height: 20px;
+        }
+        
+        .status.error { color: var(--error); }
+        .status.success { color: var(--success); }
+        
+        .score-header {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+        
+        .score-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 16px;
+        }
+        
+        .score-ring {
+            width: 140px;
+            height: 140px;
+            margin: 0 auto;
+            position: relative;
+        }
+        
+        .score-ring svg {
+            width: 100%;
+            height: 100%;
+            transform: rotate(-90deg);
+        }
+        
+        .score-bg { fill: none; stroke: rgba(255,255,255,0.06); stroke-width: 5; }
+        .score-bar { fill: none; stroke: #fff; stroke-width: 5; stroke-linecap: round; transition: stroke-dashoffset 1s ease; }
+        
+        .score-center {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+        
+        .score-num { font-size: 44px; font-weight: 300; line-height: 1; }
+        .score-max { font-size: 12px; color: var(--text-tertiary); margin-top: 4px; }
+        
+        .features { margin-top: 20px; }
+        
+        .empty {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-tertiary);
+        }
+        
+        .feature-item {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 16px 18px;
+            margin-bottom: 8px;
+        }
+        
+        .feature-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .feature-name { font-size: 14px; color: var(--text-secondary); }
+        .feature-score { font-size: 17px; font-weight: 600; }
+        
+        .feature-bar {
+            height: 5px;
+            background: rgba(255,255,255,0.08);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        
+        .feature-fill { height: 100%; border-radius: 3px; transition: width 0.6s ease; }
+        
+        .features-collapse-btn {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--border);
+            color: rgba(255,255,255,0.5);
+            cursor: pointer;
+            padding: 8px 12px;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 16px auto 0;
+            font-size: 12px;
+        }
+        
+        .features-collapse-btn:hover {
+            color: rgba(255,255,255,0.8);
+            background: rgba(255,255,255,0.08);
+            border-color: rgba(255,255,255,0.2);
+        }
+        
+        .features-collapse-btn.collapsed svg {
+            transform: rotate(180deg);
+        }
+        
+        .features {
+            transition: all 0.3s ease;
+            overflow: hidden;
+            max-height: 2000px; /*足够高以容纳所有内容*/
+        }
+        
+        .features.collapsed {
+            max-height: 0;
+            opacity: 0;
+            margin: 0;
+            padding: 0;
+        }
+        
+        .stats-section { margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border); display: none; }
+        .stats-section.active { display: block; }
+        
+        .stats-title {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 12px;
+        }
+        
+        .stats-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        
+        .stats-collapse-btn {
+            background: none;
+            border: none;
+            color: rgba(255,255,255,0.4);
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .stats-collapse-btn:hover {
+            color: rgba(255,255,255,0.7);
+            background: rgba(255,255,255,0.05);
+        }
+        
+        .stats-collapse-btn.collapsed svg {
+            transform: rotate(180deg);
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            transition: all 0.3s ease;
+            overflow: hidden;
+        }
+        
+        .stats-grid.collapsed {
+            max-height: 0;
+            opacity: 0;
+            margin: 0;
+            padding: 0;
+        }
+        
+        .stat-box {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px;
+        }
+        
+        .stat-label { font-size: 10px; color: var(--text-tertiary); text-transform: uppercase; margin-bottom: 4px; }
+        .stat-value { font-size: 14px; font-weight: 500; }
+        
+        .loader {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.95);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        
+        .loader.active { display: flex; }
+        
+        .loader-box { text-align: center; }
+        
+        .loader-spin {
+            width: 48px;
+            height: 48px;
+            border: 3px solid rgba(255,255,255,0.1);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+        
+        @keyframes spin { to { transform: rotate(360deg); } }
+        
+        .loader-title { font-size: 18px; font-weight: 400; margin-bottom: 6px; }
+        .loader-text { font-size: 14px; color: var(--text-tertiary); }
+        
+        /* Welcome Modal */
+        .welcome {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.95);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+        }
+        
+        .welcome.hidden { display: none; }
+        
+        .welcome-box {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 32px;
+            max-width: 400px;
+            width: 90%;
+            text-align: center;
+        }
+        
+        .welcome-icon {
+            width: 56px;
+            height: 56px;
+            background: rgba(255,255,255,0.08);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+        }
+        
+        .welcome-icon svg { width: 28px; height: 28px; }
+        
+        .welcome-title { font-size: 24px; font-weight: 500; margin-bottom: 8px; }
+        .welcome-subtitle { font-size: 14px; color: var(--text-secondary); margin-bottom: 24px; }
+        
+        .guidelines { list-style: none; text-align: left; margin-bottom: 24px; }
+        
+        .guidelines li {
+            padding: 10px 0;
+            font-size: 14px;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .guidelines li:last-child { border-bottom: none; }
+        .check { color: var(--success); font-weight: 600; }
+        
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <header class="header">
+            <div class="branding">
+                <h1 class="brand">larp.ai</h1>
+                <span style="color:#8e8e93;font-style:italic;">v4.1</span>
+                <p class="tagline">Facial Analysis</p>
+            </div>
+            <p class="subtitle">Upload a photo for detailed biometric analysis</p>
+        </header>
+
+        <main class="main">
+            <div class="grid">
+                <div class="left-col">
+                    <div class="card">
+                        <div class="upload-zone" id="uploadZone">
+                            <input type="file" id="fileInput" accept="image/*" hidden>
+                            <div class="upload-icon">
+                                <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                </svg>
+                            </div>
+                            <p class="upload-title">Drop your photo here</p>
+                            <p class="upload-hint">or click to browse (JPG, PNG)</p>
+                        </div>
+
+                        <div class="preview-box" id="previewBox">
+                            <img id="previewImg" alt="Preview">
+                            <canvas id="faceCanvas"></canvas>
+                        </div>
+
+                        <div class="btn-row">
+                            <button class="btn btn-primary" id="selectBtn">Choose Photo</button>
+                            <button class="btn btn-secondary" id="analyzeBtn" disabled>Analyze Face</button>
+                        </div>
+
+                        <p class="status" id="status">Loading models...</p>
+                    </div>
+                </div>
+
+                <div class="right-col">
+                    <div class="card">
+                        <div class="score-header">
+                            <p class="score-label">Overall Rating</p>
+                            <div class="score-ring">
+                                <svg viewBox="0 0 140 140">
+                                    <circle class="score-bg" cx="70" cy="70" r="62"/>
+                                    <circle class="score-bar" cx="70" cy="70" r="62" 
+                                        stroke-dasharray="389.6" 
+                                        stroke-dashoffset="389.6"
+                                        id="scoreCircle"/>
+                                </svg>
+                                <div class="score-center">
+                                    <div class="score-num" id="scoreNum">--</div>
+                                    <div class="score-max">out of 10</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="features" id="featuresBox">
+                            <div class="empty">Upload and analyze to see detailed scores</div>
+                        </div>
+
+                        <div class="stats-section" id="statsSection">
+                            <div class="stats-header">
+                                <p class="stats-title">Measurements</p>
+                            </div>
+                            <div class="stats-grid" id="statsGrid"></div>
+                        </div>
+                        
+                        <button class="features-collapse-btn" id="featuresCollapseBtn" title="Collapse detailed scores" style="display:none;">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                                <path d="M4 6L8 10L12 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            <span style="margin-left: 6px; font-size: 12px;">Collapse</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div class="loader" id="loader">
+        <div class="loader-box">
+            <div class="loader-spin"></div>
+            <p class="loader-title">Analyzing Face</p>
+            <p class="loader-text" id="loaderText">Initializing...</p>
+        </div>
+    </div>
+
+    <div class="welcome" id="welcomeModal">
+        <div class="welcome-box">
+            <div class="welcome-icon">
+                <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
+                </svg>
+            </div>
+            <h2 class="welcome-title">Photo Guidelines</h2>
+            <p class="welcome-subtitle">For the most accurate analysis:</p>
+            <ul class="guidelines">
+                <li><span class="check">✓</span> No smiling - neutral expression</li>
+                <li><span class="check">✓</span> Face upright, looking straight</li>
+                <li><span class="check">✓</span> Show head and upper neck only</li>
+                <li><span class="check">✓</span> Good lighting, no shadows</li>
+                <li><span class="check">✓</span> Clear, high-resolution photo</li>
+                <li><span class="check">✓</span> No glasses, hats, or coverings</li>
+            </ul>
+            <button class="btn btn-primary" id="startBtn" style="width: 100%;">Continue</button>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    <script src="gender.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
