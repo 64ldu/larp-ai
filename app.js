@@ -93,11 +93,12 @@ class FacialAnalyzer {
             featuresBox:      document.getElementById('featuresBox'),
             statsSection:     document.getElementById('statsSection'),
             statsGrid:        document.getElementById('statsGrid'),
-            featuresCollapseBtn: document.getElementById('featuresCollapseBtn'),
+            statsCollapseBtn: document.getElementById('statsCollapseBtn'),
             welcomeModal:     document.getElementById('welcomeModal'),
             startBtn:         document.getElementById('startBtn'),
         };
 
+        this.hairlineY = null;  // null = not set, use brow estimate
         this.ctx = this.els.faceCanvas.getContext('2d');
         this.bindEvents();
         this.initModels();
@@ -109,7 +110,7 @@ class FacialAnalyzer {
         this.els.fileInput .addEventListener('change', e => this.handleFile(e.target.files[0]));
         this.els.analyzeBtn.addEventListener('click',  () => this.analyze());
         this.els.startBtn  ?.addEventListener('click', () => this.els.welcomeModal?.classList.add('hidden'));
-        this.els.featuresCollapseBtn?.addEventListener('click', () => this.toggleFeatures());
+        this.els.statsCollapseBtn?.addEventListener('click', () => this.toggleStats());
 
         ['dragover','dragleave','drop'].forEach(evt => {
             this.els.uploadZone.addEventListener(evt, e => {
@@ -147,6 +148,7 @@ class FacialAnalyzer {
             return;
         }
         this.els.fileInput.value = '';
+        this.hairlineY = null; // reset on new photo
         const reader = new FileReader();
         reader.onload = e => {
             const img = new Image();
@@ -158,11 +160,353 @@ class FacialAnalyzer {
                 this.els.uploadZone.classList.add('hidden');
                 this.els.previewBox.classList.add('active');
                 this.els.analyzeBtn.disabled = false;
-                this.setStatus(`Loaded ${this.naturalW}\xd7${this.naturalH} \u2014 click Analyze`);
+                this.setStatus(`Loaded ${this.naturalW}\xd7${this.naturalH}`);
+                // Show hairline selector after image renders
+                requestAnimationFrame(() => requestAnimationFrame(() => {
+                    this.showHairlineSelector();
+                    this.showHairlineToast();
+                }));
             };
             img.src = e.target.result;
         };
         reader.readAsDataURL(file);
+    }
+
+    showHairlineSelector() {
+        const previewBox = this.els.previewBox;
+        const img        = this.els.previewImg;
+
+        // Remove any existing hairline UI
+        const old = previewBox.querySelector('.hairline-ui');
+        if (old) old.remove();
+
+        const imgRect = img.getBoundingClientRect();
+        const boxRect = previewBox.getBoundingClientRect();
+
+        const defaultFrac = 0.15;
+
+        // ── Container ──────────────────────────────────────────────────────
+        const ui = document.createElement('div');
+        ui.className = 'hairline-ui';
+        ui.style.cssText = `
+            position:absolute;
+            left:${imgRect.left - boxRect.left}px;
+            top:0;
+            width:${imgRect.width}px;
+            height:${imgRect.height}px;
+            pointer-events:none;
+            z-index:20;
+        `;
+
+        // ── The draggable line — white with black glow (matches app theme) ──
+        const line = document.createElement('div');
+        line.style.cssText = `
+            position:absolute;
+            left:0; right:0;
+            top:${defaultFrac * 100}%;
+            height:2px;
+            background:#ffffff;
+            box-shadow: 0 1px 8px rgba(0,0,0,0.8), 0 -1px 8px rgba(0,0,0,0.8), 0 0 0 1px rgba(0,0,0,0.4);
+            cursor:ns-resize;
+            pointer-events:all;
+            transition: box-shadow 0.15s;
+        `;
+
+        // ── Label floating above the line ───────────────────────────────────
+        const label = document.createElement('div');
+        label.style.cssText = `
+            position:absolute;
+            right:10px;
+            top:-26px;
+            background:#141414;
+            border:1px solid rgba(255,255,255,0.12);
+            color:rgba(255,255,255,0.85);
+            font-size:11px;
+            font-weight:500;
+            padding:3px 9px;
+            border-radius:6px;
+            white-space:nowrap;
+            pointer-events:none;
+            font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',sans-serif;
+            box-shadow:0 2px 8px rgba(0,0,0,0.5);
+        `;
+        label.textContent = '↕  Drag to hairline';
+        line.appendChild(label);
+
+        // ── Drag handles — small white circles on each end ──────────────────
+        ['left:0', 'right:0'].forEach(side => {
+            const handle = document.createElement('div');
+            handle.style.cssText = `
+                position:absolute;
+                ${side};
+                top:50%;
+                transform:translateY(-50%);
+                width:14px; height:14px;
+                background:#ffffff;
+                border-radius:50%;
+                cursor:ns-resize;
+                box-shadow:0 1px 6px rgba(0,0,0,0.7);
+                pointer-events:all;
+            `;
+            line.appendChild(handle);
+        });
+
+        // ── Done button — positioned below the line, centred ────────────────
+        const doneBtn = document.createElement('button');
+        doneBtn.textContent = 'Done';
+        doneBtn.style.cssText = `
+            position:absolute;
+            left:50%;
+            transform:translateX(-50%);
+            top:calc(${defaultFrac * 100}% + 10px);
+            background:#ffffff;
+            color:#000000;
+            border:none;
+            border-radius:10px;
+            padding:7px 22px;
+            font-size:13px;
+            font-weight:600;
+            font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',sans-serif;
+            cursor:pointer;
+            pointer-events:all;
+            box-shadow:0 2px 12px rgba(0,0,0,0.6);
+            transition:opacity 0.15s, transform 0.15s;
+            z-index:30;
+        `;
+
+        ui.appendChild(line);
+        ui.appendChild(doneBtn);
+        previewBox.appendChild(ui);
+
+        // ── Drag logic ──────────────────────────────────────────────────────
+        let dragging = false;
+        let startY   = 0;
+        let startTop = defaultFrac * imgRect.height;
+        let confirmed = false;
+
+        const updateDonePos = () => {
+            const topPct = parseFloat(line.style.top);
+            doneBtn.style.top = `calc(${topPct}% + 10px)`;
+        };
+
+        const onDown = e => {
+            if (confirmed) return;
+            dragging = true;
+            startY   = e.clientY ?? e.touches[0].clientY;
+            startTop = parseFloat(line.style.top) / 100 * imgRect.height;
+            line.style.boxShadow = '0 1px 12px rgba(0,0,0,0.9), 0 -1px 12px rgba(0,0,0,0.9), 0 0 0 1px rgba(255,255,255,0.3)';
+            e.preventDefault();
+        };
+        const onMove = e => {
+            if (!dragging) return;
+            const clientY = e.clientY ?? e.touches[0].clientY;
+            const delta   = clientY - startY;
+            const newTop  = Math.max(0, Math.min(imgRect.height - 2, startTop + delta));
+            const fracY   = newTop / imgRect.height;
+            line.style.top        = (fracY * 100) + '%';
+            this.hairlineY        = fracY * this.naturalH;
+            this.hairlineFracY    = fracY;
+            label.textContent     = '↕  Hairline — looks good?';
+            updateDonePos();
+            e.preventDefault();
+        };
+        const onUp = () => {
+            dragging = false;
+            line.style.boxShadow = '0 1px 8px rgba(0,0,0,0.8), 0 -1px 8px rgba(0,0,0,0.8), 0 0 0 1px rgba(0,0,0,0.4)';
+        };
+
+        line.addEventListener('mousedown',  onDown);
+        line.addEventListener('touchstart', onDown, { passive: false });
+        document.addEventListener('mousemove',  onMove);
+        document.addEventListener('touchmove',  onMove, { passive: false });
+        document.addEventListener('mouseup',    onUp);
+        document.addEventListener('touchend',   onUp);
+
+        // ── Done button click — confirm dialog ───────────────────────────────
+        doneBtn.addEventListener('click', () => {
+            if (confirmed) return;
+            this.showHairlineConfirm(line, doneBtn, ui, imgRect, () => {
+                confirmed = true;
+                // Lock the line — hide label, show locked state
+                label.textContent = '✓  Hairline set';
+                label.style.color = 'rgba(255,255,255,0.6)';
+                doneBtn.style.display = 'none';
+                line.style.cursor = 'default';
+                line.style.pointerEvents = 'none';
+                this.setStatus('Hairline set \u2014 click Analyze');
+            });
+        });
+
+        // Set initial values
+        this.hairlineY     = defaultFrac * this.naturalH;
+        this.hairlineFracY = defaultFrac;
+
+        // Run animated demo after 800ms so user sees what to do
+        setTimeout(() => this.runHairlineDemo(line, doneBtn, imgRect), 800);
+
+        this._hairlineCleanup = () => {
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('touchmove', onMove);
+            document.removeEventListener('mouseup',   onUp);
+            document.removeEventListener('touchend',  onUp);
+        };
+    }
+
+    showHairlineConfirm(line, doneBtn, ui, imgRect, onConfirm) {
+        // Remove any existing confirm
+        const oldC = ui.querySelector('.hairline-confirm');
+        if (oldC) { oldC.remove(); return; }
+
+        const currentFrac = parseFloat(line.style.top) / 100;
+
+        const confirm = document.createElement('div');
+        confirm.className = 'hairline-confirm';
+        confirm.style.cssText = `
+            position:absolute;
+            left:50%;
+            transform:translateX(-50%);
+            top:calc(${currentFrac * 100}% + 42px);
+            background:#141414;
+            border:1px solid rgba(255,255,255,0.12);
+            border-radius:14px;
+            padding:14px 16px;
+            width:220px;
+            box-shadow:0 8px 32px rgba(0,0,0,0.7);
+            pointer-events:all;
+            z-index:40;
+            font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',sans-serif;
+            text-align:center;
+        `;
+        confirm.innerHTML = `
+            <div style="font-size:13px;font-weight:500;color:#fff;margin-bottom:4px;">
+                Is the line at your hairline?
+            </div>
+            <div style="font-size:11px;color:rgba(255,255,255,0.4);margin-bottom:14px;line-height:1.4;">
+                Make sure the white line sits exactly at where your hair begins
+            </div>
+            <div style="display:flex;gap:8px;">
+                <button id="hlNo" style="
+                    flex:1;padding:7px 0;border-radius:9px;border:1px solid rgba(255,255,255,0.12);
+                    background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.7);
+                    font-size:12px;font-weight:500;cursor:pointer;
+                    font-family:inherit;
+                ">Adjust</button>
+                <button id="hlYes" style="
+                    flex:1;padding:7px 0;border-radius:9px;border:none;
+                    background:#ffffff;color:#000;
+                    font-size:12px;font-weight:600;cursor:pointer;
+                    font-family:inherit;
+                ">Confirm ✓</button>
+            </div>
+        `;
+
+        ui.appendChild(confirm);
+
+        confirm.querySelector('#hlNo').addEventListener('click', () => {
+            confirm.remove();
+        });
+        confirm.querySelector('#hlYes').addEventListener('click', () => {
+            confirm.remove();
+            onConfirm();
+        });
+    }
+
+    runHairlineDemo(line, doneBtn, imgRect) {
+        // Animate line moving from default position (15%) down to ~22% (hair area)
+        // then back to ~12%, then settling at 15% — shows user what to do
+        const startPct = parseFloat(line.style.top);
+        if (isNaN(startPct)) return;
+
+        const keyframes = [
+            { pct: startPct,      dur: 0    },   // start
+            { pct: startPct + 8,  dur: 600  },   // drift down slowly
+            { pct: startPct - 4,  dur: 500  },   // back up
+            { pct: startPct,      dur: 400  },   // settle
+        ];
+
+        let i = 1;
+        const step = () => {
+            if (i >= keyframes.length) return;
+            const kf = keyframes[i];
+            line.style.transition = `top ${kf.dur}ms ease`;
+            line.style.top = kf.pct + '%';
+            // Keep done button in sync
+            doneBtn.style.transition = `top ${kf.dur}ms ease`;
+            doneBtn.style.top = `calc(${kf.pct}% + 10px)`;
+            i++;
+            if (i < keyframes.length) setTimeout(step, kf.dur + 80);
+            else {
+                // Remove transition after demo so dragging feels instant
+                setTimeout(() => {
+                    line.style.transition = '';
+                    doneBtn.style.transition = '';
+                }, kf.dur + 100);
+            }
+        };
+        setTimeout(step, keyframes[0].dur + 200);
+    }
+
+    showHairlineToast() {
+        // Remove existing toast
+        const old = document.getElementById('hairlineToast');
+        if (old) old.remove();
+
+        const toast = document.createElement('div');
+        toast.id = 'hairlineToast';
+        toast.style.cssText = `
+            position: fixed;
+            bottom: 28px;
+            left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            background: #141414;
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 14px;
+            padding: 14px 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            z-index: 999;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+            opacity: 0;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            pointer-events: none;
+            max-width: 360px;
+            width: calc(100% - 40px);
+        `;
+
+        toast.innerHTML = `
+            <div style="
+                width: 32px; height: 32px; flex-shrink: 0;
+                background: rgba(255,214,10,0.12);
+                border: 1px solid rgba(255,214,10,0.3);
+                border-radius: 8px;
+                display: flex; align-items: center; justify-content: center;
+                font-size: 15px;
+            ">↕</div>
+            <div>
+                <div style="font-size: 13px; font-weight: 500; color: #fff; margin-bottom: 2px;">
+                    Set your hairline
+                </div>
+                <div style="font-size: 12px; color: rgba(255,255,255,0.45); line-height: 1.4;">
+                    Drag the yellow line to your actual hairline for accurate measurements
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(toast);
+
+        // Animate in
+        requestAnimationFrame(() => {
+            toast.style.opacity = '1';
+            toast.style.transform = 'translateX(-50%) translateY(0)';
+        });
+
+        // Dismiss after 5 seconds
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateX(-50%) translateY(10px)';
+            setTimeout(() => toast.remove(), 300);
+        }, 5000);
     }
 
     async analyze() {
@@ -200,7 +544,8 @@ class FacialAnalyzer {
 
             this.els.loader.classList.remove('active');
             this.els.analyzeBtn.disabled = false;
-            this.setStatus('Analysis complete \u2713', false, true);
+            const hlMsg = this.measurements.usingHairline ? ' · hairline: manual' : ' · hairline: estimated (drag yellow line to set)';
+            this.setStatus('Analysis complete \u2713' + hlMsg, false, true);
         } catch (err) {
             console.error(err);
             this.fail('Unexpected error \u2014 please retry');
@@ -299,14 +644,16 @@ class FacialAnalyzer {
         m.jawContourWidth  = this.dist(p[1], p[15]);
         m.outerCanthusDist = outerCanthusDist;
 
-        // Full face height: brow average → chin
-        // CHIN FIX: p[8] is often mis-placed by face-api on long-chinned faces,
-        // landing at the lower lip instead of the actual chin tip.
-        // Use the jaw contour point with the MAXIMUM Y value (lowest on screen)
-        // from the central jaw region (p[6]–p[10]) — this robustly finds the chin tip.
+        // Full face height: hairline (user-set) or brow average → chin
         const browAvgY = (p[19].y + p[24].y) / 2;
         const browAvgX = (p[19].x + p[24].x) / 2;
         m.browMidpoint = { x: browAvgX, y: browAvgY };
+
+        // If user dragged the hairline selector, use that Y; otherwise fall back to brow
+        const topY  = (this.hairlineY != null) ? this.hairlineY : browAvgY;
+        const topX  = browAvgX;  // assume hairline is centred (X doesn't matter for vertical height)
+        m.hairlineY = topY;
+        m.usingHairline = (this.hairlineY != null);
 
         // Find the lowest (highest Y) point among central jaw landmarks p[5]–p[11]
         // These surround the chin area; the max-Y one is the true chin tip
@@ -318,14 +665,15 @@ class FacialAnalyzer {
             if (p[i].y > chinPt.y) chinPt = p[i];
         }
         m.chinPt           = chinPt;
-        m.faceHeight       = Math.hypot(browAvgX - chinPt.x, browAvgY - chinPt.y);
+        m.faceHeight       = Math.hypot(topX - chinPt.x, topY - chinPt.y);
         m.faceHeightNasion = this.dist(p[27], chinPt);
 
         // Facial index
         m.facialIndex = m.faceHeight / m.faceWidth;
 
         /* ── FACIAL THIRDS ── */
-        m.upperThird  = this.dist(p[19], p[27]);      // brow -> nasion
+        // Upper third: hairline (or brow) → nasion
+        m.upperThird  = Math.abs(topY - p[27].y);      // vertical distance hairline → nasion
         m.middleThird = this.dist(p[27], p[33]);      // nasion -> subnasale
         m.lowerThird  = this.dist(p[33], chinPt);    // subnasale -> true chin
         const totalT  = m.upperThird + m.middleThird + m.lowerThird;
@@ -334,11 +682,9 @@ class FacialAnalyzer {
         m.upperThirdPct   = m.upperThird  / totalT;
         m.middleThirdPct  = m.middleThird / totalT;
         m.lowerThirdPct   = m.lowerThird  / totalT;
-        // Deviation from ideal equal thirds (33.3% each), not from the mean of actual thirds
-        const idealThird = 1/3; // 33.3%
-        m.upperThirdDev   = m.upperThirdPct  - idealThird;
-        m.middleThirdDev  = m.middleThirdPct - idealThird;
-        m.lowerThirdDev   = m.lowerThirdPct  - idealThird;
+        m.upperThirdDev   = (m.upperThird  - meanT) / meanT;
+        m.middleThirdDev  = (m.middleThird - meanT) / meanT;
+        m.lowerThirdDev   = (m.lowerThird  - meanT) / meanT;
 
         /* ── CANTHAL TILT ── */
         // Left: p[36]=outer, p[39]=inner. Negate: positive = outer higher = hunter eyes.
@@ -699,19 +1045,32 @@ class FacialAnalyzer {
         ctx.lineTo(faceCX + halfBiz, eyeY);
         ctx.stroke();
 
-        // FIX 2: Facial thirds — span full bizygomatic width
+        // FIX 2: Facial thirds — draw hairline (user-set or brow estimate) + nasion + subnasale
+        const lineHalfW = halfBiz;
+        const hairlineFrac = this.hairlineFracY != null ? this.hairlineFracY : null;
+        const hairlineScreenY = hairlineFrac != null
+            ? (this.els.previewImg.getBoundingClientRect().height * hairlineFrac)
+            : (s(p[19]).y + s(p[24]).y) / 2;
+
+        // Hairline — yellow/gold if user-set, white-dashed if estimated
+        ctx.lineWidth = hairlineFrac != null ? 2 : 1;
+        ctx.setLineDash(hairlineFrac != null ? [] : [5,4]);
+        ctx.strokeStyle = hairlineFrac != null ? 'rgba(255,214,10,0.9)' : 'rgba(255,255,255,0.30)';
+        ctx.beginPath(); ctx.moveTo(faceCX - lineHalfW, hairlineScreenY); ctx.lineTo(faceCX + lineHalfW, hairlineScreenY); ctx.stroke();
+
+        // Nasion and subnasale lines
         ctx.lineWidth = 1; ctx.setLineDash([5,4]);
         ctx.strokeStyle = 'rgba(255,255,255,0.30)';
-        const ocSpan   = s(p[45]).x - s(p[36]).x;
-        const lineHalfW = halfBiz;
-        [p[19], p[27], p[33]].forEach(pt => {
+        [p[27], p[33]].forEach(pt => {
             const y = s(pt).y;
             ctx.beginPath(); ctx.moveTo(faceCX - lineHalfW, y); ctx.lineTo(faceCX + lineHalfW, y); ctx.stroke();
         });
         ctx.setLineDash([]);
-        ctx.fillStyle = 'rgba(255,255,255,0.28)';
+        const ocSpan = s(p[45]).x - s(p[36]).x;
+        ctx.fillStyle = hairlineFrac != null ? 'rgba(255,214,10,0.8)' : 'rgba(255,255,255,0.28)';
         ctx.font = `${Math.max(9, cvs.width*0.012)}px system-ui`;
-        ctx.fillText('Upper',  faceCX + lineHalfW + 4, s(p[19]).y - 2);
+        ctx.fillText(hairlineFrac != null ? 'Hairline ✓' : 'Upper', faceCX + lineHalfW + 4, hairlineScreenY - 2);
+        ctx.fillStyle = 'rgba(255,255,255,0.28)';
         ctx.fillText('Middle', faceCX + lineHalfW + 4, s(p[27]).y - 2);
         ctx.fillText('Lower',  faceCX + lineHalfW + 4, s(p[33]).y - 2);
 
@@ -1060,12 +1419,6 @@ class FacialAnalyzer {
 
         this.els.featuresBox.innerHTML = html;
         this.els.statsSection.classList.add('active');
-        this.els.featuresCollapseBtn.style.display = 'flex';
-        this.els.featuresBox.classList.add('collapsed'); // Start collapsed
-        this.els.featuresCollapseBtn.classList.add('collapsed');
-        this.els.featuresCollapseBtn.querySelector('span').textContent = 'Expand';
-        this.els.featuresCollapseBtn.title = 'Expand detailed scores';
-        this.els.statsSection.classList.remove('active'); // Also hide measurements initially
 
         const rows = [
             ['Face Width (est.)',   `${m.faceWidth.toFixed(0)}px`],
@@ -1140,21 +1493,6 @@ class FacialAnalyzer {
     setStatus(msg, isError = false, isSuccess = false) {
         this.els.status.textContent = msg;
         this.els.status.className = `status${isError?' error':''}${isSuccess?' success':''}`;
-    }
-
-    toggleFeatures() {
-        const isCollapsed = this.els.featuresBox.classList.toggle('collapsed');
-        this.els.featuresCollapseBtn.classList.toggle('collapsed');
-        
-        // Also toggle the measurements section
-        if (isCollapsed) {
-            this.els.statsSection.classList.remove('active');
-        } else {
-            this.els.statsSection.classList.add('active');
-        }
-        
-        this.els.featuresCollapseBtn.title = isCollapsed ? 'Expand detailed scores' : 'Collapse detailed scores';
-        this.els.featuresCollapseBtn.querySelector('span').textContent = isCollapsed ? 'Expand' : 'Collapse';
     }
 
     toggleStats() {
