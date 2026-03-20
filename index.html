@@ -454,6 +454,65 @@
             #overlay {
                 display: none !important;
             }
+            
+            /* Fix mobile button touch issues */
+            .btn {
+                touch-action: manipulation;
+                -webkit-tap-highlight-color: rgba(255,255,255,0.1);
+                min-height: 44px;
+                min-width: 44px;
+                pointer-events: auto !important;
+            }
+            
+            .btn-primary {
+                touch-action: manipulation;
+                -webkit-tap-highlight-color: rgba(255,255,255,0.1);
+            }
+            
+            .btn-secondary {
+                touch-action: manipulation;
+                -webkit-tap-highlight-color: rgba(255,255,255,0.1);
+            }
+            
+            .hairline-popup-btn {
+                touch-action: manipulation;
+                -webkit-tap-highlight-color: rgba(0,0,0,0.1);
+                min-height: 44px;
+                min-width: 44px;
+                pointer-events: auto !important;
+            }
+            
+            .analyze-btn {
+                touch-action: manipulation;
+                -webkit-tap-highlight-color: rgba(255,255,255,0.1);
+                min-height: 50px;
+                font-size: 16px;
+                padding: 15px 30px;
+            }
+            
+            .upload-zone {
+                touch-action: manipulation;
+                -webkit-tap-highlight-color: transparent;
+            }
+            
+            .file-input {
+                touch-action: manipulation;
+            }
+            
+            /* Fix any interactive elements */
+            button, input[type="file"], input[type="button"] {
+                touch-action: manipulation;
+                -webkit-tap-highlight-color: rgba(255,255,255,0.1);
+                min-height: 44px;
+                min-width: 44px;
+                pointer-events: auto !important;
+            }
+            
+            /* Improve scrolling */
+            body {
+                -webkit-overflow-scrolling: touch;
+                overscroll-behavior: contain;
+            }
         }
         
         @media (max-width: 480px) {
@@ -799,7 +858,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
-    <script src="gender.js?v=1"></script>
-    <script src="app.js?v=1"></script>
+    <script src="gender.js?v=2"></script>
+    <script src="app.js?v=2"></script>
 </body>
 </html>
