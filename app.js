@@ -214,13 +214,14 @@ class FacialAnalyzer {
             pointer-events:all;
         `;
 
-        // ── Invisible drag area — extends 20px above and below line for easier touch ──
+        // ── Invisible drag area — extends 40px above and below line for easier touch ──
         const dragArea = document.createElement('div');
         dragArea.style.cssText = `
             position:absolute;
             left:0; right:0;
-            top:${defaultFrac * 100 - 0.1}%;
-            height:20%;
+            top:${defaultFrac * 100 - 5}%;
+            height:10%;
+            min-height:80px;
             background:transparent;
             cursor:ns-resize;
             pointer-events:all;
@@ -309,7 +310,7 @@ class FacialAnalyzer {
             const newTop  = Math.max(0, Math.min(imgRect.height - 2, startTop + delta));
             const fracY   = newTop / imgRect.height;
             line.style.top        = (fracY * 100) + '%';
-            dragArea.style.top    = ((fracY - 0.1) * 100) + '%';
+            dragArea.style.top    = ((fracY - 5) * 100) + '%';
             this.hairlineY        = fracY * this.naturalH;
             this.hairlineFracY    = fracY;
             label.textContent     = '↕  Hairline — looks good?';
@@ -430,9 +431,17 @@ class FacialAnalyzer {
         const btn   = document.getElementById('hairlinePopupBtn');
         if (!popup || !btn) return;
         popup.classList.add('active');
-        btn.onclick = () => {
+        
+        // Use both click and touch events for mobile compatibility
+        const confirmHairline = () => {
             if (this._confirmHairline) this._confirmHairline();
         };
+        
+        btn.addEventListener('click', confirmHairline);
+        btn.addEventListener('touchstart', function(e) {
+            e.preventDefault();
+            confirmHairline();
+        });
     }
 
     async analyze() {
