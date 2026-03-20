@@ -405,12 +405,20 @@ class FacialAnalyzer {
                     background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.7);
                     font-size:12px;font-weight:500;cursor:pointer;
                     font-family:inherit;
+                    touch-action: manipulation;
+                    -webkit-tap-highlight-color: rgba(255,255,255,0.1);
+                    min-height: 44px;
+                    pointer-events: auto !important;
                 ">Adjust</button>
                 <button id="hlYes" style="
                     flex:1;padding:7px 0;border-radius:9px;border:none;
                     background:#ffffff;color:#000;
                     font-size:12px;font-weight:600;cursor:pointer;
                     font-family:inherit;
+                    touch-action: manipulation;
+                    -webkit-tap-highlight-color: rgba(0,0,0,0.1);
+                    min-height: 44px;
+                    pointer-events: auto !important;
                 ">Confirm ✓</button>
             </div>
         `;
@@ -420,7 +428,16 @@ class FacialAnalyzer {
         confirm.querySelector('#hlNo').addEventListener('click', () => {
             confirm.remove();
         });
+        confirm.querySelector('#hlNo').addEventListener('touchstart', function(e) {
+            e.preventDefault();
+            confirm.remove();
+        });
         confirm.querySelector('#hlYes').addEventListener('click', () => {
+            confirm.remove();
+            onConfirm();
+        });
+        confirm.querySelector('#hlYes').addEventListener('touchstart', function(e) {
+            e.preventDefault();
             confirm.remove();
             onConfirm();
         });
