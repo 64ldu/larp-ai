@@ -207,17 +207,11 @@ class FacialAnalyzer {
             position:absolute;
             left:0; right:0;
             top:${defaultFrac * 100}%;
-            height:8px;
-            background:#ffffff;
-            box-shadow: 0 1px 8px rgba(0,0,0,0.8), 0 -1px 8px rgba(0,0,0,0.8), 0 0 0 1px rgba(0,0,0,0.4);
+            height:1px;
+            background:rgba(255,255,255,0.9);
+            box-shadow: 0 0 6px rgba(0,0,0,0.8);
             cursor:ns-resize;
             pointer-events:all;
-            transition: box-shadow 0.15s;
-            touch-action: pan-y;
-            -webkit-user-select: none;
-            -webkit-touch-callout: none;
-            -webkit-tap-highlight-color: rgba(255,255,255,0.3);
-            z-index:25;
         `;
 
         // ── Invisible drag area — extends 20px above and below line for easier touch ──
@@ -273,32 +267,8 @@ class FacialAnalyzer {
             line.appendChild(handle);
         });
 
-        // ── Done button — positioned below the line, centred ────────────────
-        const doneBtn = document.createElement('button');
-        doneBtn.textContent = 'Done';
-        doneBtn.style.cssText = `
-            position:absolute;
-            left:50%;
-            transform:translateX(-50%);
-            top:calc(${defaultFrac * 100}% + 10px);
-            background:#ffffff;
-            color:#000000;
-            border:none;
-            border-radius:10px;
-            padding:7px 22px;
-            font-size:13px;
-            font-weight:600;
-            font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',sans-serif;
-            cursor:pointer;
-            pointer-events:all;
-            box-shadow:0 2px 12px rgba(0,0,0,0.6);
-            transition:opacity 0.15s, transform 0.15s;
-            z-index:30;
-        `;
-
         ui.appendChild(dragArea);
         ui.appendChild(line);
-        ui.appendChild(doneBtn);
         previewBox.appendChild(ui);
 
         // ── Drag logic ──────────────────────────────────────────────────────
@@ -306,11 +276,6 @@ class FacialAnalyzer {
         let startY   = 0;
         let startTop = defaultFrac * imgRect.height;
         let confirmed = false;
-
-        const updateDonePos = () => {
-            const topPct = parseFloat(line.style.top);
-            doneBtn.style.top = `calc(${topPct}% + 10px)`;
-        };
 
         const onDown = e => {
             if (confirmed) return;
@@ -324,7 +289,6 @@ class FacialAnalyzer {
             }
             
             startTop = parseFloat(line.style.top) / 100 * imgRect.height;
-            line.style.boxShadow = '0 1px 12px rgba(0,0,0,0.9), 0 -1px 12px rgba(0,0,0,0.9), 0 0 0 1px rgba(255,255,255,0.3)';
             e.preventDefault();
             e.stopPropagation();
             console.log('Touch/mouse down - dragging started', { type: e.type, startY, startTop });
@@ -349,7 +313,6 @@ class FacialAnalyzer {
             this.hairlineY        = fracY * this.naturalH;
             this.hairlineFracY    = fracY;
             label.textContent     = '↕  Hairline — looks good?';
-            updateDonePos();
             e.preventDefault();
             e.stopPropagation();
             console.log('Touch/mouse move', { type: e.type, clientY, delta, newTop, fracY });
@@ -357,7 +320,6 @@ class FacialAnalyzer {
         
         const onUp = () => {
             dragging = false;
-            line.style.boxShadow = '0 1px 8px rgba(0,0,0,0.8), 0 -1px 8px rgba(0,0,0,0.8), 0 0 0 1px rgba(0,0,0,0.4)';
             console.log('Touch/mouse up - dragging ended');
         };
 
@@ -378,28 +340,23 @@ class FacialAnalyzer {
             onUp();
         });
 
-        // ── Done button click — confirm dialog ───────────────────────────────
-        doneBtn.addEventListener('click', () => {
+        // Done is now triggered from the popup button, not a button on the line
+        this._confirmHairline = () => {
             if (confirmed) return;
             document.getElementById('hairlinePopup')?.classList.remove('active');
-            this.showHairlineConfirm(line, doneBtn, ui, imgRect, () => {
+            this.showHairlineConfirm(line, null, ui, imgRect, () => {
                 confirmed = true;
-                // Lock the line — hide label, show locked state
                 label.textContent = '✓  Hairline set';
                 label.style.color = 'rgba(255,255,255,0.6)';
-                doneBtn.style.display = 'none';
                 line.style.cursor = 'default';
                 line.style.pointerEvents = 'none';
-                this.setStatus('Hairline set \u2014 click Analyze');
+                this.setStatus('Hairline set — click Analyze');
             });
-        });
+        };
 
         // Set initial values
         this.hairlineY     = defaultFrac * this.naturalH;
         this.hairlineFracY = defaultFrac;
-
-        // Run animated demo after 800ms so user sees what to do
-        setTimeout(() => this.runHairlineDemo(line, doneBtn, imgRect), 800);
 
         this._hairlineCleanup = () => {
             document.removeEventListener('mousemove', onMove);
@@ -409,7 +366,7 @@ class FacialAnalyzer {
         };
     }
 
-    showHairlineConfirm(line, doneBtn, ui, imgRect, onConfirm) {
+    showHairlineConfirm(line, _unused, ui, imgRect, onConfirm) {
         // Remove any existing confirm
         const oldC = ui.querySelector('.hairline-confirm');
         if (oldC) { oldC.remove(); return; }
@@ -507,21 +464,9 @@ class FacialAnalyzer {
         const popup = document.getElementById('hairlinePopup');
         const btn   = document.getElementById('hairlinePopupBtn');
         if (!popup || !btn) return;
-
         popup.classList.add('active');
-
-        // Wire the Done button to trigger the same confirm flow
         btn.onclick = () => {
-            const ui   = this.els.previewBox.querySelector('.hairline-ui');
-            const line = ui?.querySelector('div[style*="cursor:ns-resize"]');
-            const doneBtnInner = ui?.querySelector('button');
-            if (doneBtnInner) {
-                doneBtnInner.click();  // triggers the existing confirm dialog
-            } else {
-                // fallback: just dismiss and lock
-                popup.classList.remove('active');
-                this.setStatus('Hairline set — click Analyze');
-            }
+            if (this._confirmHairline) this._confirmHairline();
         };
     }
 
