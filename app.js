@@ -497,10 +497,11 @@ class FacialAnalyzer {
 
             this.syncCanvas();
             this.drawOverlay(p);
-            this.els.loader.classList.remove('active');
-            this.displayResults(this.scores, this.measurements);
 
+            this.els.loader.classList.remove('active');
             this.els.analyzeBtn.disabled = false;
+
+            this.displayResults(this.scores, this.measurements);
             const hlMsg = this.measurements.usingHairline ? ' \u00b7 hairline: manual' : ' \u00b7 hairline: estimated (drag yellow line to set)';
             this.setStatus('Analysis complete \u2713' + hlMsg, false, true);
         } catch (err) {
