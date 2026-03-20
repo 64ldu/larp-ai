@@ -166,7 +166,7 @@ class FacialAnalyzer {
                 // Show hairline selector after image renders
                 requestAnimationFrame(() => requestAnimationFrame(() => {
                     this.showHairlineSelector();
-                    this.showHairlineToast();
+                    this.showHairlinePopup();
                 }));
             };
             img.src = e.target.result;
@@ -381,6 +381,7 @@ class FacialAnalyzer {
         // ── Done button click — confirm dialog ───────────────────────────────
         doneBtn.addEventListener('click', () => {
             if (confirmed) return;
+            document.getElementById('hairlinePopup')?.classList.remove('active');
             this.showHairlineConfirm(line, doneBtn, ui, imgRect, () => {
                 confirmed = true;
                 // Lock the line — hide label, show locked state
@@ -502,67 +503,26 @@ class FacialAnalyzer {
         setTimeout(step, keyframes[0].dur + 200);
     }
 
-    showHairlineToast() {
-        // Remove existing toast
-        const old = document.getElementById('hairlineToast');
-        if (old) old.remove();
+    showHairlinePopup() {
+        const popup = document.getElementById('hairlinePopup');
+        const btn   = document.getElementById('hairlinePopupBtn');
+        if (!popup || !btn) return;
 
-        const toast = document.createElement('div');
-        toast.id = 'hairlineToast';
-        toast.style.cssText = `
-            position: fixed;
-            bottom: 28px;
-            left: 50%;
-            transform: translateX(-50%) translateY(20px);
-            background: #141414;
-            border: 1px solid rgba(255,255,255,0.12);
-            border-radius: 14px;
-            padding: 14px 20px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            z-index: 999;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.6);
-            opacity: 0;
-            transition: opacity 0.3s ease, transform 0.3s ease;
-            pointer-events: none;
-            max-width: 360px;
-            width: calc(100% - 40px);
-        `;
+        popup.classList.add('active');
 
-        toast.innerHTML = `
-            <div style="
-                width: 32px; height: 32px; flex-shrink: 0;
-                background: rgba(255,214,10,0.12);
-                border: 1px solid rgba(255,214,10,0.3);
-                border-radius: 8px;
-                display: flex; align-items: center; justify-content: center;
-                font-size: 15px;
-            ">↕</div>
-            <div>
-                <div style="font-size: 13px; font-weight: 500; color: #fff; margin-bottom: 2px;">
-                    Set your hairline
-                </div>
-                <div style="font-size: 12px; color: rgba(255,255,255,0.45); line-height: 1.4;">
-                    Drag the yellow line to your actual hairline for accurate measurements
-                </div>
-            </div>
-        `;
-
-        document.body.appendChild(toast);
-
-        // Animate in
-        requestAnimationFrame(() => {
-            toast.style.opacity = '1';
-            toast.style.transform = 'translateX(-50%) translateY(0)';
-        });
-
-        // Dismiss after 5 seconds
-        setTimeout(() => {
-            toast.style.opacity = '0';
-            toast.style.transform = 'translateX(-50%) translateY(10px)';
-            setTimeout(() => toast.remove(), 300);
-        }, 5000);
+        // Wire the Done button to trigger the same confirm flow
+        btn.onclick = () => {
+            const ui   = this.els.previewBox.querySelector('.hairline-ui');
+            const line = ui?.querySelector('div[style*="cursor:ns-resize"]');
+            const doneBtnInner = ui?.querySelector('button');
+            if (doneBtnInner) {
+                doneBtnInner.click();  // triggers the existing confirm dialog
+            } else {
+                // fallback: just dismiss and lock
+                popup.classList.remove('active');
+                this.setStatus('Hairline set — click Analyze');
+            }
+        };
     }
 
     async analyze() {
