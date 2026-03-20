@@ -325,12 +325,14 @@ function patchAnalyzer(analyzer) {
     analyzer.initModels = async function () {
         await _origInitModels();
         try {
+            console.log('[gender.js] Attempting to load ageGenderNet...');
             await faceapi.nets.ageGenderNet.loadFromUri('./weights');
             this._genderModelLoaded = true;
             console.log('[gender.js] ageGenderNet loaded \u2713');
         } catch (e) {
             console.warn('[gender.js] ageGenderNet not found \u2014 gender detection disabled.\n' +
                 'Download from: https://github.com/justadudewhohacks/face-api.js/tree/master/weights');
+            console.error('[gender.js] Error loading ageGenderNet:', e);
             this._genderModelLoaded = false;
         }
     };
@@ -346,10 +348,15 @@ function patchAnalyzer(analyzer) {
     /* ── 3. Run gender detection alongside face detection ── */
     const _origDetect = analyzer._detect.bind(analyzer);
     analyzer._detect = async function () {
+        console.log('[gender.js] _detect called, _genderModelLoaded:', this._genderModelLoaded);
         const det = await _origDetect();
-        if (!det || !this._genderModelLoaded) return det;
+        if (!det || !this._genderModelLoaded) {
+            console.log('[gender.js] Skipping gender detection - no detection or model not loaded');
+            return det;
+        }
 
         try {
+            console.log('[gender.js] Running gender detection...');
             this.setLoader('Detecting gender & age\u2026');
             const withGender = await faceapi
                 .detectSingleFace(this.currentImage,
@@ -360,6 +367,7 @@ function patchAnalyzer(analyzer) {
                 .withFaceLandmarks()
                 .withAgeAndGender();
 
+            console.log('[gender.js] Gender detection result:', withGender);
             if (withGender) {
                 this._genderResult = {
                     gender:            withGender.gender,
@@ -370,6 +378,8 @@ function patchAnalyzer(analyzer) {
                 console.log(`[gender.js] ${this._genderResult.gender} ` +
                     `(${(this._genderResult.genderProbability * 100).toFixed(0)}% conf), ` +
                     `age ~${this._genderResult.age}`);
+            } else {
+                console.log('[gender.js] No gender detection result');
             }
         } catch (e) {
             console.warn('[gender.js] Gender detection failed:', e.message);
@@ -389,13 +399,17 @@ function patchAnalyzer(analyzer) {
     /* ── 5. Intercept displayResults — show gender popup first ── */
     const _origDisplay = analyzer.displayResults.bind(analyzer);
     analyzer.displayResults = function (scores, m) {
+        console.log('[gender.js] displayResults called, genderResult:', this._genderResult);
         this._showGenderConfirm(scores, m);
     };
 
     /* ── 6. Show gender confirmation popup after scoring ── */
     analyzer._showGenderConfirm = function(scores, m) {
+        console.log('[gender.js] _showGenderConfirm called');
         const gr = this._genderResult;
+        console.log('[gender.js] genderResult:', gr);
         if (!gr) {
+            console.log('[gender.js] No gender detected - showing results directly');
             // No gender detected — just show results directly
             _origDisplay(scores, m);
             return;
@@ -409,13 +423,17 @@ function patchAnalyzer(analyzer) {
         const confPct  = (gr.genderProbability * 100).toFixed(0);
 
         // Populate popup
+        console.log('[gender.js] Populating popup...');
         const overlay    = document.getElementById('genderConfirmOverlay');
         const iconEl     = document.getElementById('genderConfirmIcon');
         const labelEl    = document.getElementById('genderConfirmLabel');
         const confirmBtn = document.getElementById('genderConfirmYes');
         const switchBtn  = document.getElementById('genderConfirmSwitch');
 
+        console.log('[gender.js] Popup elements:', { overlay: !!overlay, iconEl: !!iconEl, labelEl: !!labelEl, confirmBtn: !!confirmBtn, switchBtn: !!switchBtn });
+
         if (!overlay) {
+            console.log('[gender.js] Popup overlay not found - showing results directly');
             // Popup HTML not in index.html — skip straight to results
             _origDisplay(scores, m);
             return;
@@ -429,7 +447,9 @@ function patchAnalyzer(analyzer) {
         labelEl.style.color      = color;
         switchBtn.textContent    = `Different Gender — Switch to ${opposite}`;
 
+        console.log('[gender.js] Adding active class to overlay');
         overlay.classList.add('active');
+        console.log('[gender.js] Overlay classes:', overlay.className);
 
         // Confirm button — show results as detected
         const onConfirm = () => {
