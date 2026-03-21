@@ -93,8 +93,6 @@ class FacialAnalyzer {
             featuresBox:      document.getElementById('featuresBox'),
             statsSection:     document.getElementById('statsSection'),
             statsGrid:        document.getElementById('statsGrid'),
-            statsCollapseBtn: document.getElementById('statsCollapseBtn'),
-            featuresCollapseBtn: document.getElementById('featuresCollapseBtn'),
             welcomeModal:     document.getElementById('welcomeModal'),
             startBtn:         document.getElementById('startBtn'),
         };
@@ -111,8 +109,6 @@ class FacialAnalyzer {
         this.els.fileInput .addEventListener('change', e => this.handleFile(e.target.files[0]));
         this.els.analyzeBtn.addEventListener('click',  () => this.analyze());
         this.els.startBtn  ?.addEventListener('click', () => this.els.welcomeModal?.classList.add('hidden'));
-        this.els.statsCollapseBtn?.addEventListener('click', () => this.toggleStats());
-        this.els.featuresCollapseBtn?.addEventListener('click', () => this.toggleFeatures());
 
         ['dragover','dragleave','drop'].forEach(evt => {
             this.els.uploadZone.addEventListener(evt, e => {
@@ -1379,24 +1375,9 @@ class FacialAnalyzer {
 
         this.els.featuresBox.innerHTML = html;
 
-        // Mobile: always expanded, no collapse button
-        // Desktop: start collapsed, show expand button
-        const isMobile = window.innerWidth <= 768;
-        if (isMobile) {
-            if (this.els.featuresCollapseBtn) this.els.featuresCollapseBtn.style.display = 'none';
-            this.els.featuresBox.classList.remove('collapsed');
-            this.els.statsSection.classList.add('active');
-        } else {
-            if (this.els.featuresCollapseBtn) {
-                this.els.featuresCollapseBtn.style.display = 'flex';
-                this.els.featuresCollapseBtn.classList.add('collapsed');
-                const span = this.els.featuresCollapseBtn.querySelector('span');
-                if (span) span.textContent = 'Expand';
-                this.els.featuresCollapseBtn.title = 'Expand detailed scores';
-            }
-            this.els.featuresBox.classList.add('collapsed');
-            this.els.statsSection.classList.remove('active');
-        }
+        // Always show features expanded, no collapse functionality
+        this.els.featuresBox.classList.remove('collapsed');
+        this.els.statsSection.classList.add('active');
 
         const rows = [
             ['Face Width (est.)',   `${m.faceWidth.toFixed(0)}px`],
@@ -1479,25 +1460,6 @@ class FacialAnalyzer {
     setStatus(msg, isError = false, isSuccess = false) {
         this.els.status.textContent = msg;
         this.els.status.className = `status${isError?' error':''}${isSuccess?' success':''}`;
-    }
-
-    toggleFeatures() {
-        const isCollapsed = this.els.featuresBox.classList.toggle('collapsed');
-        this.els.featuresCollapseBtn.classList.toggle('collapsed');
-        if (isCollapsed) {
-            this.els.statsSection.classList.remove('active');
-        } else {
-            this.els.statsSection.classList.add('active');
-        }
-        this.els.featuresCollapseBtn.title = isCollapsed ? 'Expand detailed scores' : 'Collapse detailed scores';
-        const span = this.els.featuresCollapseBtn.querySelector('span');
-        if (span) span.textContent = isCollapsed ? 'Expand' : 'Collapse';
-    }
-
-    toggleStats() {
-        const isCollapsed = this.els.statsGrid.classList.toggle('collapsed');
-        this.els.statsCollapseBtn.classList.toggle('collapsed');
-        this.els.statsCollapseBtn.title = isCollapsed ? 'Expand measurements' : 'Collapse measurements';
     }
 
     delay(ms) { return new Promise(r => setTimeout(r, ms)); }
