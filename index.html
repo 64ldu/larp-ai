@@ -646,6 +646,120 @@
             opacity: 0.85;
         }
 
+        /* Developer Mode Raw Data Popup */
+        .dev-data-popup {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            backdrop-filter: blur(10px);
+        }
+
+        .dev-data-popup-content {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .dev-data-popup-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .dev-data-popup-header h3 {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .dev-data-popup-close {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+
+        .dev-data-popup-close:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text);
+        }
+
+        .dev-data-popup-body {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .dev-data-popup-body pre {
+            margin: 0;
+            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+            font-size: 12px;
+            line-height: 1.4;
+            color: var(--text);
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .dev-data-popup-footer {
+            display: flex;
+            gap: 12px;
+            padding: 20px;
+            border-top: 1px solid var(--border);
+            justify-content: flex-end;
+        }
+
+        .dev-data-popup-btn {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .dev-data-popup-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .dev-data-popup-btn:first-child {
+            background: var(--success);
+            border-color: var(--success);
+            color: #000;
+        }
+
+        .dev-data-popup-btn:first-child:hover {
+            background: #2ac147;
+        }
+
     </style>
 </head>
 <body>
@@ -766,6 +880,23 @@
         <button class="hairline-popup-btn" id="hairlinePopupBtn">Done</button>
     </div>
 
+    <!-- Developer Mode Raw Data Popup -->
+    <div class="dev-data-popup" id="devDataPopup" style="display: none;">
+        <div class="dev-data-popup-content">
+            <div class="dev-data-popup-header">
+                <h3>Raw Facial Analysis Data</h3>
+                <button class="dev-data-popup-close" id="devDataCloseBtn">×</button>
+            </div>
+            <div class="dev-data-popup-body">
+                <pre id="devDataContent"></pre>
+            </div>
+            <div class="dev-data-popup-footer">
+                <button class="dev-data-popup-btn" id="devDataCopyBtn">Copy to Clipboard</button>
+                <button class="dev-data-popup-btn" id="devDataOkBtn">OK</button>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
     <script src="gender.js?v=23"></script>
     <script src="app.js?v=23"></script>
@@ -810,11 +941,44 @@
                         }
                     }
                     
-                    // Display in alert
-                    alert(rawStats);
+                    // Display in popup
+                    document.getElementById('devDataContent').textContent = rawStats;
+                    document.getElementById('devDataPopup').style.display = 'flex';
                 }
                 } else {
                     alert('Incorrect password');
                 }
+            });
+
+            // Developer popup event handlers
+            document.getElementById('devDataCloseBtn').addEventListener('click', function() {
+                document.getElementById('devDataPopup').style.display = 'none';
+            });
+
+            document.getElementById('devDataOkBtn').addEventListener('click', function() {
+                document.getElementById('devDataPopup').style.display = 'none';
+            });
+
+            document.getElementById('devDataCopyBtn').addEventListener('click', function() {
+                const content = document.getElementById('devDataContent').textContent;
+                navigator.clipboard.writeText(content).then(function() {
+                    // Change button text temporarily to indicate success
+                    const btn = document.getElementById('devDataCopyBtn');
+                    const originalText = btn.textContent;
+                    btn.textContent = 'Copied!';
+                    btn.style.background = 'var(--success)';
+                    btn.style.borderColor = 'var(--success)';
+                    btn.style.color = '#000';
+                    
+                    setTimeout(function() {
+                        btn.textContent = originalText;
+                        btn.style.background = '';
+                        btn.style.borderColor = '';
+                        btn.style.color = '';
+                    }, 2000);
+                }).catch(function(err) {
+                    console.error('Failed to copy text: ', err);
+                    alert('Failed to copy to clipboard');
+                });
             });
         </script>
