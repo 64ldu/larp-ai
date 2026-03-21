@@ -342,6 +342,9 @@ function _femaleScores(m, ideals, fallbackFn) {
     const wmean = pairs => { let t=0,w=0; for(const[v,wt]of pairs){t+=clamp(v,0,10)*wt;w+=wt;} return t/w; };
 
     // Re-score gender-sensitive metrics
+    // Facial thirds: females get much wider tolerance — slightly unequal thirds
+    // are completely normal and a slightly shorter lower third reads as neotenous
+    s.goldenRatio  = lmap(m.facialThirdsDev, 0, 0.35, 10, 2);
     s.FWHR         = gauss(m.FWHR,               ideals.FWHR.ideal,          ideals.FWHR.sigma,          2, 10);
     s.facialIndex  = gauss(m.facialIndex,         ideals.facialIndex.ideal,   ideals.facialIndex.sigma,   3, 10);
     s.midfaceRatio = gauss(m.midfaceRatio,        ideals.midfaceRatio.ideal,  ideals.midfaceRatio.sigma,  2, 10);
@@ -456,10 +459,13 @@ function _patchFemaleDisplayContent(featuresBox, scores, m) {
         if (meta) {
             const nameEl = item.querySelector('.feature-name');
             if (nameEl) nameEl.textContent = meta.name;
-            const descDivs = item.querySelectorAll('div[style*="font-size:11px"]');
+            // Target the description div specifically by its color style
+            const descDivs = item.querySelectorAll('div[style*="font-size:11px"][style*="color:rgba(255,255,255,0.35)"]');
             if (descDivs[0]) descDivs[0].textContent = meta.what;
-            const idealDivs = item.querySelectorAll('div[style*="font-size:10px"]');
-            if (idealDivs[0]) idealDivs[0].innerHTML = `Ideal: <span style="color:rgba(255,255,255,0.30)">${meta.ideal}</span> &nbsp;\u00b7&nbsp; ${meta.source}`;
+            // Target the ideal line by finding the one that contains "Ideal:"
+            const allSmall = item.querySelectorAll('div[style*="font-size:10px"]');
+            const idealDiv = Array.from(allSmall).find(d => d.textContent.includes('Ideal:'));
+            if (idealDiv) idealDiv.innerHTML = `Ideal: <span style="color:rgba(255,255,255,0.30)">${meta.ideal}</span> &nbsp;\u00b7&nbsp; ${meta.source}`;
         }
 
         if (fix && v < 5.5) {
