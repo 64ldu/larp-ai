@@ -1529,110 +1529,158 @@ class FacialAnalyzer {
         const m = this.measurements;
         const s = this.scores;
         if (!m || !s) return;
+
+        const div = (n) => '─'.repeat(n);
+        const sep = '═'.repeat(62);
+        const hdr = (t) => `\n${div(3)} ${t} ${div(Math.max(0,55-t.length))}`;
+
+        // Pull feature cards directly from the rendered DOM so we always get
+        // the correct (gender-patched) name, your-value, ideal-range, description and ideal line
+        const featureCards = [];
+        const ORDER = ['symmetry','goldenRatio','FWHR','midfaceRatio','eyeArea','zygomatic',
+                       'jawline','bizygoBigonial','nose','lips','maxilla','gonion','mandible',
+                       'temples','eyebrows','EMEangle','facialIndex','neoclassical'];
+        this.els.featuresBox.querySelectorAll('.feature-item').forEach((item, idx) => {
+            const key   = ORDER[idx];
+            const score = s[key] ?? 0;
+            const name  = item.querySelector('.feature-name')?.textContent?.trim() ?? key;
+            // YOUR VALUE and IDEAL RANGE boxes
+            const valBoxes = item.querySelectorAll('[style*="font-size:9px"]');
+            let yourVal = '—', idealVal = '—';
+            valBoxes.forEach(box => {
+                const label = box.textContent.trim();
+                const valEl = box.nextElementSibling;
+                if (label === 'YOUR VALUE')  yourVal  = valEl?.textContent?.trim() ?? '—';
+                if (label === 'IDEAL RANGE') idealVal = valEl?.textContent?.trim() ?? '—';
+            });
+            // Description text
+            const descEl = item.querySelector('[style*="color:rgba(255,255,255,0.35)"]');
+            const desc   = descEl?.textContent?.trim() ?? '';
+            // Ideal line (contains "Ideal:")
+            const allSmall = item.querySelectorAll('[style*="font-size:10px"]');
+            let idealLine = '';
+            allSmall.forEach(el => { if (el.textContent.includes('Ideal:')) idealLine = el.textContent.trim(); });
+            featureCards.push({ key, name, score, yourVal, idealVal, desc, idealLine });
+        });
+
+        // Build text dump
         const lines = [
-            '═══════════════════════════════════',
-            '  LARP.AI — RAW ANALYSIS DUMP',
-            '═══════════════════════════════════',
+            sep,
+            '  LARP.AI \u2014 RAW ANALYSIS DUMP',
+            sep,
             '',
-            `  gender           ${this._selectedGender ?? 'not set'}`,
-            `  rating           ${s.looksmaxxRating?.label}  (${s.looksmaxxRating?.pct})`,
+            `  Gender    : ${this._selectedGender ?? 'not set'}`,
+            `  Rating    : ${s.looksmaxxRating?.label}  (${s.looksmaxxRating?.pct})`,
+            `  Overall   : ${s.overall?.toFixed(2)} / 10`,
+            `  Image     : ${this.naturalW}\xd7${this.naturalH}px   Confidence: ${(m.detectionConfidence*100).toFixed(0)}%`,
             '',
-            '── SCORES ──────────────────────────────────────────────────────',
-            `  overall          ${s.overall?.toFixed(4)}`,
-            `  HARM             ${s.HARM?.toFixed(4)}`,
-            `  ANGU             ${s.ANGU?.toFixed(4)}`,
-            `  DIMO             ${s.DIMO?.toFixed(4)}`,
-            `  MISC             ${s.MISC?.toFixed(4)}`,
-            '',
-            `  symmetry         ${s.symmetry?.toFixed(4)}`,
-            `  goldenRatio      ${s.goldenRatio?.toFixed(4)}`,
-            `  FWHR             ${s.FWHR?.toFixed(4)}`,
-            `  midfaceRatio     ${s.midfaceRatio?.toFixed(4)}`,
-            `  eyeArea          ${s.eyeArea?.toFixed(4)}`,
-            `  zygomatic        ${s.zygomatic?.toFixed(4)}`,
-            `  jawline          ${s.jawline?.toFixed(4)}`,
-            `  bizygoBigonial   ${s.bizygoBigonial?.toFixed(4)}`,
-            `  nose             ${s.nose?.toFixed(4)}`,
-            `  lips             ${s.lips?.toFixed(4)}`,
-            `  maxilla          ${s.maxilla?.toFixed(4)}`,
-            `  gonion           ${s.gonion?.toFixed(4)}`,
-            `  mandible         ${s.mandible?.toFixed(4)}`,
-            `  temples          ${s.temples?.toFixed(4)}`,
-            `  eyebrows         ${s.eyebrows?.toFixed(4)}`,
-            `  EMEangle         ${s.EMEangle?.toFixed(4)}`,
-            `  facialIndex      ${s.facialIndex?.toFixed(4)}`,
-            `  neoclassical     ${s.neoclassical?.toFixed(4)}`,
-            `  chinPhiltrum     ${s.chinPhiltrum?.toFixed(4)}`,
-            '',
-            '── MEASUREMENTS ──────────────────────────────────────────────────',
-            `  detectionConf    ${(m.detectionConfidence*100).toFixed(1)}%`,
-            `  faceWidth        ${m.faceWidth?.toFixed(2)}px`,
-            `  faceHeight       ${m.faceHeight?.toFixed(2)}px`,
-            `  headWidth        ${m.headWidth?.toFixed(2)}px`,
-            `  jawContourWidth  ${m.jawContourWidth?.toFixed(2)}px`,
-            `  facialIndex      ${m.facialIndex?.toFixed(4)}`,
-            `  FWHR             ${m.FWHR?.toFixed(4)}`,
-            `  usingHairline    ${m.usingHairline}`,
-            '',
-            `  upperThird       ${m.upperThird?.toFixed(1)}px  ${(m.upperThirdPct*100).toFixed(1)}%  dev ${(m.upperThirdDev*100).toFixed(1)}%`,
-            `  middleThird      ${m.middleThird?.toFixed(1)}px  ${(m.middleThirdPct*100).toFixed(1)}%  dev ${(m.middleThirdDev*100).toFixed(1)}%`,
-            `  lowerThird       ${m.lowerThird?.toFixed(1)}px  ${(m.lowerThirdPct*100).toFixed(1)}%  dev ${(m.lowerThirdDev*100).toFixed(1)}%`,
-            `  thirdsDevTotal   ${(m.facialThirdsDev*100).toFixed(2)}%`,
-            '',
-            `  avgCanthal       ${m.avgCanthal?.toFixed(3)}°  L ${m.leftCanthal?.toFixed(2)}°  R ${m.rightCanthal?.toFixed(2)}°  asym ${m.canthalAsym?.toFixed(2)}°`,
-            `  ESR              ${m.ESR?.toFixed(4)}`,
-            `  IPD              ${m.ipd?.toFixed(1)}px`,
-            `  intercanthal     ${m.intercanthal?.toFixed(1)}px`,
-            `  eyeAspectRatio   ${m.eyeAspectRatio?.toFixed(4)}`,
-            `  avgEyeWidth      ${m.avgEyeWidth?.toFixed(1)}px`,
-            `  eyeWidthAsym     ${(m.eyeWidthAsym*100).toFixed(2)}%`,
-            `  neo eye ratio    ${m.neoclassicalEyeRatio?.toFixed(4)}`,
-            `  neo IPD ratio    ${m.neoclassicalIPDRatio?.toFixed(4)}`,
-            '',
-            `  jawAngle         ${m.jawAngle?.toFixed(2)}°`,
-            `  jawRatio         ${m.jawRatio?.toFixed(4)}`,
-            `  jawFrontalAngle  ${m.jawFrontalAngle?.toFixed(2)}°`,
-            `  heightBigonial   ${m.heightBigonialRatio?.toFixed(4)}`,
-            `  bizygoBigonial   ${m.bizygoBigonialRatio?.toFixed(4)}`,
-            `  gonionPromin     ${(m.gonionProminence*100).toFixed(2)}%`,
-            `  mandiblePromin   ${(m.mandibleProminence*100).toFixed(2)}%`,
-            '',
-            `  nasalHWratio     ${m.nasalHWratio?.toFixed(4)}`,
-            `  alarIntercanthal ${m.alarIntercanthal?.toFixed(4)}`,
-            `  mouthNoseRatio   ${m.mouthNoseRatio?.toFixed(4)}`,
-            `  noseTipDev       ${(m.noseTipDeviation*100).toFixed(2)}%`,
-            `  alarSymmetry     ${(m.alarSymmetry*100).toFixed(2)}%`,
-            '',
-            `  lowerUpperLip    ${m.lowerUpperLipRatio?.toFixed(4)}`,
-            `  mouthWidthFace   ${m.mouthWidthFace?.toFixed(4)}`,
-            '',
-            `  browLowsetness   ${m.browLowsetness?.toFixed(4)}`,
-            `  avgBrowTilt      ${m.avgBrowTilt?.toFixed(3)}°`,
-            `  browThickness    ${m.browThickness?.toFixed(4)}`,
-            '',
-            `  zygomaticPromin  ${(m.zygomaticProminence*100).toFixed(2)}%`,
-            `  templeRatio      ${m.templeRatio?.toFixed(4)}`,
-            `  EMEangle         ${m.EMEangle?.toFixed(3)}°`,
-            `  symmetryRaw      ${(m.symmetryRaw*100).toFixed(3)}%`,
-            `  chinPhiltrum     ${m.chinPhiltrumRatio?.toFixed(4)}`,
-            `  midfaceRatio     ${m.midfaceRatio?.toFixed(4)}`,
-            `  midfaceLenRatio  ${(m.midfaceLengthRatio*100).toFixed(2)}%`,
-            '═══════════════════════════════════',
         ];
+
+        // Composites
+        lines.push(hdr('COMPOSITE BREAKDOWN'));
+        lines.push(`  HARM  ${s.HARM?.toFixed(2)}  \u2014 32% (harmony & ratios)`);
+        lines.push(`  MISC  ${s.MISC?.toFixed(2)}  \u2014 26% (eyes, nose, lips, EME)`);
+        lines.push(`  ANGU  ${s.ANGU?.toFixed(2)}  \u2014 22% (jaw, zygo, gonion)`);
+        lines.push(`  DIMO  ${s.DIMO?.toFixed(2)}  \u2014 20% (dimorphism / neoteny)`);
+
+        // Facial thirds
+        lines.push('');
+        lines.push(hdr('FACIAL THIRDS'));
+        lines.push(`  Upper  : ${(m.upperThirdPct*100).toFixed(1)}%  (${m.upperThird?.toFixed(1)}px)  dev ${(m.upperThirdDev*100).toFixed(1)}%`);
+        lines.push(`  Middle : ${(m.middleThirdPct*100).toFixed(1)}%  (${m.middleThird?.toFixed(1)}px)  dev ${(m.middleThirdDev*100).toFixed(1)}%`);
+        lines.push(`  Lower  : ${(m.lowerThirdPct*100).toFixed(1)}%  (${m.lowerThird?.toFixed(1)}px)  dev ${(m.lowerThirdDev*100).toFixed(1)}%`);
+        lines.push(`  Total deviation: ${(m.facialThirdsDev*100).toFixed(2)}%  |  Hairline: ${m.usingHairline ? 'manual' : 'estimated'}`);
+
+        // Feature cards — full detail
+        lines.push('');
+        lines.push(hdr('FEATURE SCORES — FULL DETAIL'));
+
+        featureCards.forEach(({ name, score, yourVal, idealVal, desc, idealLine }) => {
+            lines.push('');
+            lines.push(`  ${'▸'} ${name.toUpperCase()}  ${score.toFixed(1)} / 10`);
+            lines.push(`    Your value : ${yourVal}`);
+            lines.push(`    Ideal range: ${idealVal}`);
+            if (desc) {
+                // Word-wrap description at ~72 chars
+                const words = desc.split(' ');
+                let line = '    ';
+                words.forEach(w => {
+                    if ((line + w).length > 74) { lines.push(line); line = '    ' + w + ' '; }
+                    else line += w + ' ';
+                });
+                if (line.trim()) lines.push(line.trimEnd());
+            }
+            if (idealLine) lines.push(`    ${idealLine}`);
+        });
+
+        // Raw measurements
+        lines.push('');
+        lines.push(hdr('RAW MEASUREMENTS'));
+        const rawRows = [
+            ['Face Width (est.)',    `${m.faceWidth?.toFixed(2)}px`],
+            ['Face Height',          `${m.faceHeight?.toFixed(2)}px`],
+            ['Head Width',           `${m.headWidth?.toFixed(2)}px`],
+            ['Jaw Contour W',        `${m.jawContourWidth?.toFixed(2)}px`],
+            ['Facial Index',         `${m.facialIndex?.toFixed(4)}`],
+            ['FWHR',                 `${m.FWHR?.toFixed(4)}`],
+            ['Canthal (avg/L/R)',     `${m.avgCanthal?.toFixed(2)}° / ${m.leftCanthal?.toFixed(2)}° / ${m.rightCanthal?.toFixed(2)}°`],
+            ['Canthal Asymmetry',    `${m.canthalAsym?.toFixed(2)}°`],
+            ['ESR',                  `${m.ESR?.toFixed(4)}`],
+            ['IPD',                  `${m.ipd?.toFixed(1)}px`],
+            ['Intercanthal',         `${m.intercanthal?.toFixed(1)}px`],
+            ['Eye Aspect Ratio',     `${m.eyeAspectRatio?.toFixed(4)}`],
+            ['Avg Eye Width',        `${m.avgEyeWidth?.toFixed(1)}px`],
+            ['Eye Width Asym',       `${(m.eyeWidthAsym*100).toFixed(2)}%`],
+            ['Neo Eye Ratio',        `${m.neoclassicalEyeRatio?.toFixed(4)}`],
+            ['Neo IPD Ratio',        `${m.neoclassicalIPDRatio?.toFixed(4)}`],
+            ['Midface Ratio',        `${m.midfaceRatio?.toFixed(4)}`],
+            ['Gonial Angle',         `${m.jawAngle?.toFixed(2)}°`],
+            ['Jaw/Face Ratio',       `${m.jawRatio?.toFixed(4)}`],
+            ['Bizygo/Bigonial',      `${m.bizygoBigonialRatio?.toFixed(4)}`],
+            ['H/Bigonial',           `${m.heightBigonialRatio?.toFixed(4)}`],
+            ['Jaw Frontal Angle',    `${m.jawFrontalAngle?.toFixed(2)}°`],
+            ['Zygo Prominence',      `${(m.zygomaticProminence*100).toFixed(2)}%`],
+            ['Gonion Prominence',    `${(m.gonionProminence*100).toFixed(2)}%`],
+            ['Mandible Prominence',  `${(m.mandibleProminence*100).toFixed(2)}%`],
+            ['Nasal W/H',            `${m.nasalHWratio?.toFixed(4)}`],
+            ['Alar/Intercanthal',    `${m.alarIntercanthal?.toFixed(4)}`],
+            ['Mouth/Nose',           `${m.mouthNoseRatio?.toFixed(4)}`],
+            ['Nose Tip Dev',         `${(m.noseTipDeviation*100).toFixed(2)}%`],
+            ['Alar Symmetry',        `${(m.alarSymmetry*100).toFixed(2)}%`],
+            ['Lower/Upper Lip',      `${m.lowerUpperLipRatio?.toFixed(4)}`],
+            ['Mouth/Face',           `${m.mouthWidthFace?.toFixed(4)}`],
+            ['Chin/Philtrum',        `${m.chinPhiltrumRatio?.toFixed(4)}`],
+            ['Chin Projection',      `${(m.chinProjection*100).toFixed(2)}%`],
+            ['Brow Lowsetness',      `${m.browLowsetness?.toFixed(4)}`],
+            ['Brow Tilt',            `${m.avgBrowTilt?.toFixed(3)}°`],
+            ['Brow Thickness',       `${m.browThickness?.toFixed(4)}`],
+            ['Temple Ratio',         `${m.templeRatio?.toFixed(4)}`],
+            ['EME Angle',            `${m.EMEangle?.toFixed(3)}°`],
+            ['Symmetry Raw',         `${(m.symmetryRaw*100).toFixed(3)}%`],
+            ['Midface Length%',      `${(m.midfaceLengthRatio*100).toFixed(2)}%`],
+            ['Mentolabial Angle',    `${m.mentolabialAngle?.toFixed(2)}°`],
+        ];
+        rawRows.forEach(([label, val]) => {
+            lines.push(`  ${label.padEnd(22)}: ${val}`);
+        });
+        lines.push('');
+        lines.push(sep);
+
         const text = lines.join('\n');
+
         const overlay = document.createElement('div');
         overlay.id = '_devModal';
         overlay.style.cssText = 'position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;';
         overlay.innerHTML = `
-            <div style="background:#0d0d0d;border:1px solid rgba(255,255,255,0.12);border-radius:16px;width:min(560px,calc(100% - 32px));max-height:80vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,0.9);">
+            <div style="background:#0d0d0d;border:1px solid rgba(255,255,255,0.12);border-radius:16px;width:min(680px,calc(100% - 32px));max-height:88vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,0.9);">
                 <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.07);flex-shrink:0;">
-                    <span style="font-size:13px;font-weight:700;color:rgba(255,255,255,0.8);font-family:-apple-system,sans-serif;letter-spacing:0.04em;">⚙ DEV RAW DATA</span>
+                    <span style="font-size:13px;font-weight:700;color:rgba(255,255,255,0.8);font-family:-apple-system,sans-serif;letter-spacing:0.04em;">\u2699 DEV RAW DATA</span>
                     <div style="display:flex;gap:8px;">
                         <button id="_devCopy" style="background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);color:rgba(255,255,255,0.6);font-size:11px;font-weight:600;padding:5px 12px;border-radius:6px;cursor:pointer;font-family:-apple-system,sans-serif;">Copy</button>
-                        <button id="_devClose" style="background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);color:rgba(255,255,255,0.6);font-size:11px;font-weight:600;padding:5px 12px;border-radius:6px;cursor:pointer;font-family:-apple-system,sans-serif;">✕ Close</button>
+                        <button id="_devClose" style="background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);color:rgba(255,255,255,0.6);font-size:11px;font-weight:600;padding:5px 12px;border-radius:6px;cursor:pointer;font-family:-apple-system,sans-serif;">\u2715 Close</button>
                     </div>
                 </div>
-                <pre id="_devPre" style="margin:0;padding:18px 20px;overflow-y:auto;font-family:'SF Mono','Fira Code','Consolas',monospace;font-size:11.5px;line-height:1.65;color:rgba(255,255,255,0.75);white-space:pre;background:transparent;">${text}</pre>
+                <pre id="_devPre" style="margin:0;padding:18px 20px;overflow-y:auto;font-family:'SF Mono','Fira Code','Consolas',monospace;font-size:11px;line-height:1.7;color:rgba(255,255,255,0.75);white-space:pre;background:transparent;">${text}</pre>
             </div>
         `;
         document.body.appendChild(overlay);
@@ -1641,7 +1689,7 @@ class FacialAnalyzer {
         const copyBtn = overlay.querySelector('#_devCopy');
         copyBtn.addEventListener('click', () => {
             navigator.clipboard.writeText(text).then(() => {
-                copyBtn.textContent = 'Copied ✓';
+                copyBtn.textContent = 'Copied \u2713';
                 copyBtn.style.color = '#30d158';
                 setTimeout(() => { copyBtn.textContent = 'Copy'; copyBtn.style.color = 'rgba(255,255,255,0.6)'; }, 2000);
             });
