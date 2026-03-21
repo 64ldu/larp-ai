@@ -451,8 +451,8 @@ function _femaleScores(m, ideals, fallbackFn) {
     const conf      = clamp(m.detectionConfidence, 0.5, 1);
     s.overall       = clamp((composite - penalty) * (0.88 + 0.12*conf), 0, 10);
     
-    // Apply 1.1025x buff to female overall rating
-    s.overall = clamp(s.overall * 1.1025, 0, 10);
+    // Apply 1.0750x buff to female overall rating
+    s.overall = clamp(s.overall * 1.0750, 0, 10);
     
     s.looksmaxxRating = _getFemaleRating(s.overall);
 
